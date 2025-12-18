@@ -1,0 +1,18 @@
+name: Precompile
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  precompile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Precompile extension
+        uses: cli/gh-extension-precompile@v2
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
