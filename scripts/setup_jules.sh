@@ -58,8 +58,15 @@ go mod download
 
 # 5. Install pre-commit hooks
 if command -v pre-commit &> /dev/null; then
-    echo "Installing pre-commit hooks..."
-    pre-commit install
+    echo "Checking if pre-commit hooks can be installed..."
+    # Check if core.hooksPath is set (e.g. to /dev/null in some CI/Agent envs)
+    if git config core.hooksPath >/dev/null; then
+        echo "Git config 'core.hooksPath' is set (likely globally). Skipping pre-commit hook installation to avoid conflicts."
+        echo "You can still run checks manually using: pre-commit run --all-files"
+    else
+        echo "Installing pre-commit hooks..."
+        pre-commit install
+    fi
 else
     echo "Warning: pre-commit command not found, skipping hook installation."
 fi
