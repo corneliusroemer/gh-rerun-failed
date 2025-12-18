@@ -2,6 +2,8 @@
 
 A GitHub CLI extension to rerun failed workflow runs across branches, commits, and PRs with powerful filtering and detailed insights.
 
+![Demo](./demo.gif)
+
 ## Installation
 
 ```bash
@@ -42,6 +44,14 @@ gh extension list
 ### Remove the extension
 ```bash
 gh extension remove rerun-failed
+```
+
+## Demo Recording
+
+The terminal demo was created using [VHS](https://github.com/charmbracelet/vhs). To re-record:
+
+```bash
+vhs < demo.tape
 ```
 
 ## Flags
