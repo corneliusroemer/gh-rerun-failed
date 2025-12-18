@@ -163,7 +163,7 @@ func (c *Client) FetchPullRequest(number int) (*PullRequest, error) {
 		} `json:"repository"`
 	}
 
-	err := c.graphqlClient.Query("GetPR", query, variables)
+	err := c.graphqlClient.Do(query, variables, &response)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (c *Client) FetchOpenPullRequests() ([]PullRequest, error) {
 		} `json:"repository"`
 	}
 
-	err := c.graphqlClient.Query("ListPRs", query, variables)
+	err := c.graphqlClient.Do(query, variables, &response)
 	if err != nil {
 		return nil, err
 	}
