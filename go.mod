@@ -1,6 +1,6 @@
 module github.com/cli/gh-rerun-failed
 
-go 1.25.0
+go 1.24
 
 require (
 	github.com/cli/go-gh/v2 v2.12.0
