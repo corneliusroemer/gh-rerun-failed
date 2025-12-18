@@ -175,7 +175,7 @@ func (c *Client) FetchOpenPullRequests() ([]PullRequest, error) {
 	query := `
 		query ListPRs($owner: String!, $name: String!) {
 			repository(owner: $owner, name: $name) {
-				pullRequests(first: 100, states: OPEN) {
+				pullRequests(first: 100, states: OPEN, orderBy: {field: CREATED_AT, direction: DESC}) {
 					nodes {
 						number
 						headRefOid
