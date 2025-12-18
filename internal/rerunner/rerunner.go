@@ -51,7 +51,7 @@ func (r *Rerunner) Run() error {
 	if sr, err := r.client.GetRateLimit(); err == nil {
 		startRate = sr
 		resetTime := time.Unix(startRate.Reset, 0).Format("15:04:05")
-		fmt.Printf("[Trace] Rate limit at start: %d/%d (resets at %s)\n", 
+		fmt.Printf("[Trace] Rate limit at start: %d/%d (resets at %s)\n",
 			startRate.Remaining, startRate.Limit, resetTime)
 	} else {
 		fmt.Printf("[Warning] Could not fetch start rate limit: %v\n", err)
@@ -140,7 +140,7 @@ func (r *Rerunner) Run() error {
 		brW := 20
 		shaW := 7
 		dateW := 19
-		
+
 		maxUrlW := 0
 		for _, run := range runs {
 			if len(run.HTMLURL) > maxUrlW {
@@ -153,9 +153,9 @@ func (r *Rerunner) Run() error {
 
 		// Header
 		format := "%-40s | %-3s | %-20s | %-7s | %-19s | %-*s | %s\n"
-		fmt.Printf("\n"+format, 
+		fmt.Printf("\n"+format,
 			"Workflow (+Failed Jobs)", "Att", "Branch@Dist", "SHA", "Created At", maxUrlW, "URL", "Message")
-		
+
 		// Separator line
 		// 6 separators of " | " (3 chars each) = 18
 		overhead := 18 + wfW + attW + brW + shaW + dateW + maxUrlW
@@ -175,7 +175,7 @@ func (r *Rerunner) Run() error {
 			if len(sha) > 7 {
 				sha = sha[:7]
 			}
-			
+
 			branchDist := run.HeadBranch
 			if d, ok := commitMap[run.HeadSha]; ok && d > 0 {
 				branchDist = fmt.Sprintf("%s^%d", run.HeadBranch, d)
@@ -193,11 +193,11 @@ func (r *Rerunner) Run() error {
 				name = fmt.Sprintf("%s (%s)", name, strings.Join(failed, ", "))
 			}
 
-			fmt.Printf(rowFormat, 
-				truncate(name, wfW), 
-				run.RunAttempt, 
-				truncate(branchDist, brW), 
-				sha, 
+			fmt.Printf(rowFormat,
+				truncate(name, wfW),
+				run.RunAttempt,
+				truncate(branchDist, brW),
+				sha,
 				createdAt,
 				maxUrlW,
 				run.HTMLURL,
@@ -227,21 +227,21 @@ func (r *Rerunner) Run() error {
 			if err != nil {
 				fmt.Printf("✗ Failed to rerun %d (%s): %v\n", run.ID, run.Name, err)
 			} else {
-				fmt.Printf("✓ Triggered rerun for: %s (%s) | #%d (attempt %d) | %s\n", 
+				fmt.Printf("✓ Triggered rerun for: %s (%s) | #%d (attempt %d) | %s\n",
 					run.Name, run.HeadBranch, run.RunNumber, run.RunAttempt, sha)
 			}
 		}(run)
 	}
 
 	wg.Wait()
-	
+
 	endRate, err := r.client.GetRateLimit()
 	if err == nil {
 		spent := 0
 		if startRate != nil {
 			spent = startRate.Remaining - endRate.Remaining
 		}
-		fmt.Printf("[Trace] Rate limit at end: %d/%d (spent %d)\n", 
+		fmt.Printf("[Trace] Rate limit at end: %d/%d (spent %d)\n",
 			endRate.Remaining, endRate.Limit, spent)
 	}
 
@@ -353,7 +353,7 @@ func (r *Rerunner) fetchFailedRunsForSha(sha string) ([]gh.WorkflowRun, error) {
 	var allRuns []gh.WorkflowRun
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	
+
 	statuses := []string{"failure"}
 	if r.opts.IncludeCancelled {
 		statuses = append(statuses, "cancelled")

@@ -83,7 +83,7 @@ func (c *Client) FetchWorkflowRuns(branch string, status string, since time.Time
 		if len(allRuns) >= response.TotalCount || len(response.WorkflowRuns) < perPage {
 			break
 		}
-		
+
 		if page > 10 {
 			break
 		}
@@ -239,7 +239,7 @@ func (c *Client) FetchCommits(branch string, limit int) ([]Commit, error) {
 
 func (c *Client) FetchWorkflowRunJobs(runID int64) ([]WorkflowJob, error) {
 	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d/jobs", c.repo.Owner, c.repo.Name, runID)
-	
+
 	var response struct {
 		Jobs []WorkflowJob `json:"jobs"`
 	}
@@ -256,7 +256,7 @@ func (c *Client) RerunWorkflow(runID int64, failedOnly bool) error {
 		endpoint = "rerun-failed-jobs"
 	}
 	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d/%s", c.repo.Owner, c.repo.Name, runID, endpoint)
-	
+
 	return c.restClient.Post(path, nil, nil)
 }
 
