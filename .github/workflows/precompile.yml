@@ -12,7 +12,11 @@ jobs:
   precompile:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Precompile extension
         uses: cli/gh-extension-precompile@v2
         with:
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          go_version: '1.24'
