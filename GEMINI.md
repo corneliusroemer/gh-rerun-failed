@@ -17,6 +17,8 @@ Build a user-friendly GitHub CLI extension to rerun failed actions across commit
 - [x] Concurrent execution of reruns (max 5) to respect rate limits.
 - [x] Parallel fetching of different statuses to improve performance.
 - [x] PR-level targeting (`--pr`, `--all-prs`).
+- [x] Matrix job awareness: shows exactly which matrix entries failed.
+- [x] Robust GraphQL: fixed raw query handling using `Do` method.
 - [x] Metadata in logs: Run #, Branch, SHA, CreatedAt, URL.
 - [x] Rate limit accounting and trace logging.
 - [x] Repository override via `--repo`.
