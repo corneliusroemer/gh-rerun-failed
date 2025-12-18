@@ -42,24 +42,24 @@ type WorkflowRun struct {
 func ExecuteReruns(runsWorkflowRun, opts RerunOptions) {
     // Semaphore to limit concurrency to 5 active requests
     sem := make(chan struct{}, 5)
-    
+
     for _, run := range runs {
         // Acquire token
         sem <- struct{}{}
-        
+
         go func(r WorkflowRun) {
             defer func() { <-sem }() // Release token
-            
+
             if opts.DryRun {
                 fmt.Printf(" Would rerun workflow %d: %s\n", r.ID, r.Name)
                 return
             }
-            
+
             endpoint := fmt.Sprintf("repos/%s/%s/actions/runs/%d/rerun-failed-jobs", owner, repo, r.ID)
             if!opts.FailedOnly {
                 endpoint = fmt.Sprintf("repos/%s/%s/actions/runs/%d/rerun", owner, repo, r.ID)
             }
-            
+
             err := client.Post(endpoint, nil)
             if err!= nil {
                 handleError(err) // Check for 403 Rate Limit
