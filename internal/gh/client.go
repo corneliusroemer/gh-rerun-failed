@@ -138,7 +138,7 @@ func (c *Client) FetchWorkflowRunsForSha(sha string, status string, limit int) (
 }
 
 func (c *Client) FetchPullRequest(number int) (*PullRequest, error) {
-	query := fmt.Sprintf(`
+	query := `
 		query GetPR($owner: String!, $name: String!, $number: Int!) {
 			repository(owner: $owner, name: $name) {
 				pullRequest(number: $number) {
@@ -149,7 +149,7 @@ func (c *Client) FetchPullRequest(number int) (*PullRequest, error) {
 				}
 			}
 		}
-	`)
+	`
 
 	variables := map[string]interface{}{
 		"owner":  c.repo.Owner,
@@ -172,7 +172,7 @@ func (c *Client) FetchPullRequest(number int) (*PullRequest, error) {
 }
 
 func (c *Client) FetchOpenPullRequests() ([]PullRequest, error) {
-	query := fmt.Sprintf(`
+	query := `
 		query ListPRs($owner: String!, $name: String!) {
 			repository(owner: $owner, name: $name) {
 				pullRequests(first: 100, states: OPEN) {
@@ -185,7 +185,7 @@ func (c *Client) FetchOpenPullRequests() ([]PullRequest, error) {
 				}
 			}
 		}
-	`)
+	`
 
 	variables := map[string]interface{}{
 		"owner": c.repo.Owner,
