@@ -23,12 +23,12 @@ builds:
     binary: gh-rerun-failed
 
 archives:
-  - formats: [ tar.gz ]
-    # Standard format that gh extension install likes
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - format: tar.gz
+    # Standard format gh extension install likes
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        formats: [ zip ]
+        format: zip
 
 checksum:
   name_template: 'checksums.txt'
