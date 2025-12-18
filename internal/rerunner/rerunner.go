@@ -306,36 +306,36 @@ func (r *Rerunner) fetchRunsForAllOpenPRs() ([]gh.WorkflowRun, error) {
 	}
 
 	var allRuns []gh.WorkflowRun
-	var sinceTime time.Time
-	if r.opts.Since > 0 {
-		sinceTime = time.Now().Add(-r.opts.Since)
-	}
 
-	consecutiveEmpty := 0
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10) // Concurrency limit for PR fetching
+
 	for _, pr := range prs {
 		if pr.IsDraft && !r.opts.IncludeDrafts {
 			continue
 		}
-		runs, err := r.fetchFailedRunsForSha(pr.HeadRefOid)
-		if err != nil {
-			fmt.Printf("Warning: failed to fetch runs for PR #%d: %v\n", pr.Number, err)
-			continue
-		}
 
-		if len(runs) > 0 {
-			allRuns = append(allRuns, runs...)
-			consecutiveEmpty = 0
-		} else if !sinceTime.IsZero() {
-			consecutiveEmpty++
-			// If we found NO recent failed runs for 5 PRs in a row,
-			// and since PRs are ordered by newest first, it's very likely
-			// that older PRs also won't have recent failed runs.
-			if consecutiveEmpty >= 5 {
-				fmt.Printf("[Trace] Stopping PR fetch after %d consecutive PRs with no recent failed runs.\n", consecutiveEmpty)
-				break
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(p gh.PullRequest) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			runs, err := r.fetchFailedRunsForSha(p.HeadRefOid)
+			if err != nil {
+				fmt.Printf("Warning: failed to fetch runs for PR #%d: %v\n", p.Number, err)
+				return
 			}
-		}
+
+			if len(runs) > 0 {
+				mu.Lock()
+				allRuns = append(allRuns, runs...)
+				mu.Unlock()
+			}
+		}(pr)
 	}
+	wg.Wait()
 	return allRuns, nil
 }
 

@@ -2,6 +2,8 @@ package gh
 
 import (
 	"fmt"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -46,53 +48,103 @@ func NewClient(repoOverride string) (GHClient, error) {
 }
 
 func (c *Client) FetchWorkflowRuns(branch string, status string, since time.Time, limit int) ([]WorkflowRun, error) {
-	var allRuns []WorkflowRun
-	page := 1
-	perPage := 100
-	if limit > 0 && limit < 100 {
-		perPage = limit
+	// First fetch page 1 to get TotalCount
+	firstPage, totalCount, err := c.fetchWorkflowRunsPage(branch, status, 1, 100)
+	if err != nil {
+		return nil, err
 	}
 
-	for {
-		path := fmt.Sprintf("repos/%s/%s/actions/runs?status=%s&per_page=%d&page=%d", c.repo.Owner, c.repo.Name, status, perPage, page)
-		if branch != "" {
-			path += fmt.Sprintf("&branch=%s", branch)
+	allRuns := firstPage
+	if !since.IsZero() {
+		// Filter first page
+		var filtered []WorkflowRun
+		for _, run := range allRuns {
+			if run.CreatedAt.After(since) {
+				filtered = append(filtered, run)
+			}
 		}
+		allRuns = filtered
+		// If we already hit runs older than since, or we have enough runs for the limit, return early
+		if (len(firstPage) > 0 && firstPage[len(firstPage)-1].CreatedAt.Before(since)) || (limit > 0 && len(allRuns) >= limit) {
+			if limit > 0 && len(allRuns) > limit {
+				allRuns = allRuns[:limit]
+			}
+			return allRuns, nil
+		}
+	}
 
-		fmt.Printf("Fetching page %d for runs with status %s...\n", page, status)
-		var response WorkflowRunsResponse
-		err := c.restClient.Get(path, &response)
+	remainingPages := (totalCount + 99) / 100
+	if remainingPages > 10 {
+		remainingPages = 10 // Cap at 10 pages
+	}
+
+	if remainingPages <= 1 {
+		if limit > 0 && len(allRuns) > limit {
+			allRuns = allRuns[:limit]
+		}
+		return allRuns, nil
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errChan := make(chan error, remainingPages-1)
+
+	for p := 2; p <= remainingPages; p++ {
+		wg.Add(1)
+		go func(page int) {
+			defer wg.Done()
+			runs, _, err := c.fetchWorkflowRunsPage(branch, status, page, 100)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			var filtered []WorkflowRun
+			for _, run := range runs {
+				if !since.IsZero() && run.CreatedAt.Before(since) {
+					continue
+				}
+				filtered = append(filtered, run)
+			}
+
+			mu.Lock()
+			allRuns = append(allRuns, filtered...)
+			mu.Unlock()
+		}(p)
+	}
+
+	wg.Wait()
+	close(errChan)
+	for err := range errChan {
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		if len(response.WorkflowRuns) == 0 {
-			break
-		}
-
-		for _, run := range response.WorkflowRuns {
-			if !since.IsZero() && run.CreatedAt.Before(since) {
-				continue
-			}
-			allRuns = append(allRuns, run)
-			if limit > 0 && len(allRuns) >= limit {
-				return allRuns, nil
-			}
-		}
-
-		if len(allRuns) >= response.TotalCount || len(response.WorkflowRuns) < perPage {
-			break
-		}
-
-		if page > 10 {
-			break
-		}
-		page++
+	if limit > 0 && len(allRuns) > limit {
+		sort.Slice(allRuns, func(i, j int) bool {
+			return allRuns[i].CreatedAt.After(allRuns[j].CreatedAt)
+		})
+		allRuns = allRuns[:limit]
 	}
 
 	return allRuns, nil
 }
 
+func (c *Client) fetchWorkflowRunsPage(branch string, status string, page int, perPage int) ([]WorkflowRun, int, error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/runs?status=%s&per_page=%d&page=%d", c.repo.Owner, c.repo.Name, status, perPage, page)
+	if branch != "" {
+		path += fmt.Sprintf("&branch=%s", branch)
+	}
+
+	fmt.Printf("Fetching page %d for runs with status %s...\n", page, status)
+	var response WorkflowRunsResponse
+	err := c.restClient.Get(path, &response)
+	if err != nil {
+		return nil, 0, err
+	}
+	return response.WorkflowRuns, response.TotalCount, nil
+}
 func (c *Client) FetchWorkflowRunsForSha(sha string, status string, limit int) ([]WorkflowRun, error) {
 	var allRuns []WorkflowRun
 	page := 1
