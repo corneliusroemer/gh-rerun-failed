@@ -26,14 +26,16 @@ type Options struct {
 }
 
 type Rerunner struct {
-	client gh.GHClient
-	opts   Options
+	client  gh.GHClient
+	opts    Options
+	NowFunc func() time.Time
 }
 
 func NewRerunner(client gh.GHClient, opts Options) *Rerunner {
 	return &Rerunner{
-		client: client,
-		opts:   opts,
+		client:  client,
+		opts:    opts,
+		NowFunc: time.Now,
 	}
 }
 
@@ -342,7 +344,7 @@ func (r *Rerunner) fetchRunsForAllOpenPRs() ([]gh.WorkflowRun, error) {
 func (r *Rerunner) fetchRunsForContextParallel() ([]gh.WorkflowRun, error) {
 	var sinceTime time.Time
 	if r.opts.Since > 0 {
-		sinceTime = time.Now().Add(-r.opts.Since)
+		sinceTime = r.NowFunc().Add(-r.opts.Since)
 	}
 
 	statuses := []string{"failure"}
@@ -416,7 +418,7 @@ func (r *Rerunner) fetchFailedRunsForSha(sha string) ([]gh.WorkflowRun, error) {
 
 	// Filter by since if needed
 	if r.opts.Since > 0 {
-		sinceTime := time.Now().Add(-r.opts.Since)
+		sinceTime := r.NowFunc().Add(-r.opts.Since)
 		var filtered []gh.WorkflowRun
 		for _, run := range allRuns {
 			if run.CreatedAt.After(sinceTime) {
