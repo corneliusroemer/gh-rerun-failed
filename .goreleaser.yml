@@ -23,8 +23,8 @@ builds:
 
 archives:
   - format: tar.gz
-    # standard format that gh extension install likes
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    # exact format gh extension install expects for go extensions
+    name_template: "gh-rerun-failed-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
