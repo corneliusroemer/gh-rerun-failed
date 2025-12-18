@@ -2,6 +2,7 @@ package gh
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -16,7 +17,7 @@ type Client struct {
 	repo          repository.Repository
 }
 
-func NewClient(repoOverride string) (GHClient, error) {
+func NewClient(repoOverride string, transport http.RoundTripper) (GHClient, error) {
 	var repo repository.Repository
 	var err error
 
@@ -30,12 +31,18 @@ func NewClient(repoOverride string) (GHClient, error) {
 		return nil, fmt.Errorf("could not determine repository: %w", err)
 	}
 
-	restClient, err := api.DefaultRESTClient()
+	restOpts := api.ClientOptions{
+		Transport: transport,
+	}
+	restClient, err := api.NewRESTClient(restOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create GitHub REST API client: %w", err)
 	}
 
-	graphqlClient, err := api.DefaultGraphQLClient()
+	gqlOpts := api.ClientOptions{
+		Transport: transport,
+	}
+	graphqlClient, err := api.NewGraphQLClient(gqlOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create GitHub GraphQL API client: %w", err)
 	}

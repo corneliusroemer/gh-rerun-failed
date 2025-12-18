@@ -62,7 +62,7 @@ func runRerunner() error {
 		}
 	}
 
-	client, err := gh.NewClient(repoOverride)
+	client, err := gh.NewClient(repoOverride, nil)
 	if err != nil {
 		return err
 	}
