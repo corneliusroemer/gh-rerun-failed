@@ -54,6 +54,7 @@ type GHClient interface {
 	FetchPullRequest(number int) (*PullRequest, error)
 	FetchOpenPullRequests() ([]PullRequest, error)
 	FetchCommits(branch string, limit int) ([]Commit, error)
+	FetchCommit(sha string) (*Commit, error)
 	FetchWorkflowRunJobs(runID int64) ([]WorkflowJob, error)
 	RerunWorkflow(runID int64, failedOnly bool) error
 	GetRateLimit() (*RateLimit, error)

@@ -234,6 +234,27 @@ func (c *Client) FetchCommits(branch string, limit int) ([]Commit, error) {
 	return commits, nil
 }
 
+func (c *Client) FetchCommit(sha string) (*Commit, error) {
+	path := fmt.Sprintf("repos/%s/%s/commits/%s", c.repo.Owner, c.repo.Name, sha)
+
+	var response struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Message string `json:"message"`
+		} `json:"commit"`
+	}
+
+	err := c.restClient.Get(path, &response)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Commit{
+		SHA:     response.SHA,
+		Message: response.Commit.Message,
+	}, nil
+}
+
 func (c *Client) FetchWorkflowRunJobs(runID int64) ([]WorkflowJob, error) {
 	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d/jobs", c.repo.Owner, c.repo.Name, runID)
 

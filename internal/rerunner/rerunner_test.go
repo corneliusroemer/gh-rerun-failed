@@ -16,8 +16,16 @@ type mockGHClient struct {
 	fetchOpenPullRequestsFunc   func() ([]gh.PullRequest, error)
 	fetchWorkflowRunsForShaFunc func(sha string, status string, limit int) ([]gh.WorkflowRun, error)
 	fetchCommitsFunc            func(branch string, limit int) ([]gh.Commit, error)
+	fetchCommitFunc             func(sha string) (*gh.Commit, error)
 	fetchWorkflowRunJobsFunc    func(runID int64) ([]gh.WorkflowJob, error)
 	getRateLimitFunc            func() (*gh.RateLimit, error)
+}
+
+func (m *mockGHClient) FetchCommit(sha string) (*gh.Commit, error) {
+	if m.fetchCommitFunc != nil {
+		return m.fetchCommitFunc(sha)
+	}
+	return nil, nil
 }
 
 func (m *mockGHClient) FetchWorkflowRunJobs(runID int64) ([]gh.WorkflowJob, error) {

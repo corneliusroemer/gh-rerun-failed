@@ -60,6 +60,8 @@ func (r *Rerunner) Run() error {
 	// Fetch commits to correlate SHA with distance from tip
 	commitMap := make(map[string]int)
 	commitMsgMap := make(map[string]string)
+	var mu sync.Mutex
+
 	if r.opts.Branch != "" || r.opts.PRNumber == 0 {
 		commits, err := r.client.FetchCommits(r.opts.Branch, 50)
 		if err == nil {
@@ -157,7 +159,6 @@ func (r *Rerunner) Run() error {
 			"Workflow (+Failed Jobs)", "Att", "Branch@Dist", "SHA", "Created At", maxUrlW, "URL", "Message")
 
 		// Separator line
-		// 6 separators of " | " (3 chars each) = 18
 		overhead := 18 + wfW + attW + brW + shaW + dateW + maxUrlW
 		msgW := width - overhead
 		if msgW < 20 {
@@ -170,39 +171,68 @@ func (r *Rerunner) Run() error {
 		fmt.Println(strings.Repeat("-", lineLen))
 
 		rowFormat := "%-40s | %-3d | %-20s | %-7s | %-19s | %-*s | %s\n"
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 5)
+
 		for _, run := range runs {
-			sha := run.HeadSha
-			if len(sha) > 7 {
-				sha = sha[:7]
-			}
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(run gh.WorkflowRun) {
+				defer wg.Done()
+				defer func() { <-sem }()
 
-			branchDist := run.HeadBranch
-			if d, ok := commitMap[run.HeadSha]; ok && d > 0 {
-				branchDist = fmt.Sprintf("%s^%d", run.HeadBranch, d)
-			}
+				sha := run.HeadSha
+				if len(sha) > 7 {
+					sha = sha[:7]
+				}
 
-			msg := commitMsgMap[run.HeadSha]
-			if msg == "" {
-				msg = "unknown"
-			}
+				distance := "HEAD^?"
+				if d, ok := commitMap[run.HeadSha]; ok {
+					if d == 0 {
+						distance = "HEAD"
+					} else {
+						distance = fmt.Sprintf("HEAD^%d", d)
+					}
+				}
 
-			createdAt := run.CreatedAt.Format("2006-01-02 15:04:05")
+				mu.Lock()
+				msg, ok := commitMsgMap[run.HeadSha]
+				mu.Unlock()
 
-			name := run.Name
-			if failed, ok := runFailedJobs[run.ID]; ok {
-				name = fmt.Sprintf("%s (%s)", name, strings.Join(failed, ", "))
-			}
+				if !ok {
+					// Fallback: fetch single commit info
+					c, err := r.client.FetchCommit(run.HeadSha)
+					if err == nil {
+						msg = strings.Split(c.Message, "\n")[0]
+						mu.Lock()
+						commitMsgMap[run.HeadSha] = msg
+						mu.Unlock()
+					}
+				}
 
-			fmt.Printf(rowFormat,
-				truncate(name, wfW),
-				run.RunAttempt,
-				truncate(branchDist, brW),
-				sha,
-				createdAt,
-				maxUrlW,
-				run.HTMLURL,
-				truncate(msg, msgW))
+				if msg == "" {
+					msg = "unknown"
+				}
+
+				createdAt := run.CreatedAt.Format("2006-01-02 15:04:05")
+
+				name := run.Name
+				if failed, ok := runFailedJobs[run.ID]; ok {
+					name = fmt.Sprintf("%s (%s)", name, strings.Join(failed, ", "))
+				}
+
+				fmt.Printf(rowFormat,
+					truncate(name, wfW),
+					run.RunAttempt,
+					truncate(fmt.Sprintf("%s (%s)", run.HeadBranch, distance), brW),
+					sha,
+					createdAt,
+					maxUrlW,
+					run.HTMLURL,
+					truncate(msg, msgW))
+			}(run)
 		}
+		wg.Wait()
 		fmt.Println("Dry-run complete. No reruns were triggered.")
 		return nil
 	}
