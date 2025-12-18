@@ -25,7 +25,7 @@ func (m *mockGHClient) FetchCommit(sha string) (*gh.Commit, error) {
 	if m.fetchCommitFunc != nil {
 		return m.fetchCommitFunc(sha)
 	}
-	return nil, nil
+	return &gh.Commit{}, nil
 }
 
 func (m *mockGHClient) FetchWorkflowRunJobs(runID int64) ([]gh.WorkflowJob, error) {
