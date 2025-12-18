@@ -1,0 +1,19 @@
+linters:
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - misspell
+    - unparam
+    - prealloc
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gofmt:
+    simplify: true
+
+run:
+  timeout: 5m
