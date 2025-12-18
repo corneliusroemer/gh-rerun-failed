@@ -23,18 +23,17 @@ builds:
     binary: gh-rerun-failed
 
 archives:
-  - format: tar.gz
-    # exact format gh extension install expects for go extensions
-    # we must ensure amd64 is used instead of x86_64
-    name_template: "gh-rerun-failed-{{ .Os }}-{{ if or (eq .Arch \"amd64\") (eq .Arch \"x86_64\") }}amd64{{ else }}{{ .Arch }}{{ end }}"
+  - formats: [ tar.gz ]
+    # Standard format that gh extension install likes
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ zip ]
 
 checksum:
   name_template: 'checksums.txt'
 
-snapshot:
+snapshots:
   name_template: "next"
 
 changelog:
