@@ -1,9 +1,9 @@
 module github.com/cli/gh-rerun-failed
 
-go 1.24
+go 1.25.0
 
 require (
-	github.com/cli/go-gh/v2 v2.13.0
+	github.com/cli/go-gh/v2 v2.12.0
 	github.com/spf13/cobra v1.10.2
 )
 
