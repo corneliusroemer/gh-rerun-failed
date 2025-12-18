@@ -1,0 +1,394 @@
+package rerunner
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/cli/gh-rerun-failed/internal/gh"
+	"github.com/cli/go-gh/v2/pkg/term"
+)
+
+type Options struct {
+	Repo             string
+	Branch           string
+	Limit            int
+	Since            time.Duration
+	PRNumber         int
+	AllOpenPRs       bool
+	DryRun           bool
+	FailedOnly       bool
+	IncludeDrafts    bool
+	IncludeCancelled bool
+	IncludeTimedOut  bool
+}
+
+type Rerunner struct {
+	client gh.GHClient
+	opts   Options
+}
+
+func NewRerunner(client gh.GHClient, opts Options) *Rerunner {
+	return &Rerunner{
+		client: client,
+		opts:   opts,
+	}
+}
+
+func (r *Rerunner) Run() error {
+	repo := r.client.Repo()
+	fmt.Printf("Targeting repository: %s/%s\n", repo.Owner, repo.Name)
+
+	terminal := term.FromEnv()
+	width, _, _ := terminal.Size()
+	if width <= 0 {
+		width = 120 // Default fallback
+	}
+
+	var startRate *gh.RateLimit
+	if sr, err := r.client.GetRateLimit(); err == nil {
+		startRate = sr
+		resetTime := time.Unix(startRate.Reset, 0).Format("15:04:05")
+		fmt.Printf("[Trace] Rate limit at start: %d/%d (resets at %s)\n", 
+			startRate.Remaining, startRate.Limit, resetTime)
+	} else {
+		fmt.Printf("[Warning] Could not fetch start rate limit: %v\n", err)
+	}
+
+	// Fetch commits to correlate SHA with distance from tip
+	commitMap := make(map[string]int)
+	commitMsgMap := make(map[string]string)
+	if r.opts.Branch != "" || r.opts.PRNumber == 0 {
+		commits, err := r.client.FetchCommits(r.opts.Branch, 50)
+		if err == nil {
+			for i, c := range commits {
+				commitMap[c.SHA] = i
+				msg := strings.Split(c.Message, "\n")[0]
+				commitMsgMap[c.SHA] = msg
+			}
+		}
+	}
+
+	var runs []gh.WorkflowRun
+	var err error
+
+	if r.opts.PRNumber > 0 {
+		runs, err = r.fetchRunsForPR(r.opts.PRNumber)
+	} else if r.opts.AllOpenPRs {
+		runs, err = r.fetchRunsForAllOpenPRs()
+	} else {
+		runs, err = r.fetchRunsForContextParallel()
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if len(runs) == 0 {
+		fmt.Println("No failed workflow runs found matching the criteria.")
+		return nil
+	}
+
+	totalFound := len(runs)
+	// Limit if requested
+	if r.opts.Limit > 0 && len(runs) > r.opts.Limit {
+		runs = runs[:r.opts.Limit]
+	}
+
+	fmt.Printf("Found %d failed/cancelled workflow runs (processed %d). Starting reruns...\n", totalFound, len(runs))
+
+	// Sort runs by CreatedAt descending
+	sort.Slice(runs, func(i, j int) bool {
+		return runs[i].CreatedAt.After(runs[j].CreatedAt)
+	})
+
+	// Fetch failed jobs for each run to show matrix entries
+	runFailedJobs := make(map[int64][]string)
+	var jobMu sync.Mutex
+	var jobWg sync.WaitGroup
+	jobSem := make(chan struct{}, 10)
+
+	for _, run := range runs {
+		jobWg.Add(1)
+		jobSem <- struct{}{}
+		go func(run gh.WorkflowRun) {
+			defer jobWg.Done()
+			defer func() { <-jobSem }()
+			jobs, err := r.client.FetchWorkflowRunJobs(run.ID)
+			if err == nil {
+				var failed []string
+				for _, j := range jobs {
+					if j.Conclusion == "failure" {
+						failed = append(failed, j.Name)
+					}
+				}
+				if len(failed) > 0 {
+					jobMu.Lock()
+					runFailedJobs[run.ID] = failed
+					jobMu.Unlock()
+				}
+			}
+		}(run)
+	}
+	jobWg.Wait()
+
+	if r.opts.DryRun {
+		wfW := 40
+		attW := 3
+		brW := 20
+		shaW := 7
+		dateW := 19
+		
+		maxUrlW := 0
+		for _, run := range runs {
+			if len(run.HTMLURL) > maxUrlW {
+				maxUrlW = len(run.HTMLURL)
+			}
+		}
+		if maxUrlW < 3 {
+			maxUrlW = 3
+		}
+
+		// Header
+		format := "%-40s | %-3s | %-20s | %-7s | %-19s | %-*s | %s\n"
+		fmt.Printf("\n"+format, 
+			"Workflow (+Failed Jobs)", "Att", "Branch@Dist", "SHA", "Created At", maxUrlW, "URL", "Message")
+		
+		// Separator line
+		// 6 separators of " | " (3 chars each) = 18
+		overhead := 18 + wfW + attW + brW + shaW + dateW + maxUrlW
+		msgW := width - overhead
+		if msgW < 20 {
+			msgW = 20
+		}
+		lineLen := overhead + msgW
+		if lineLen > width {
+			lineLen = width
+		}
+		fmt.Println(strings.Repeat("-", lineLen))
+
+		rowFormat := "%-40s | %-3d | %-20s | %-7s | %-19s | %-*s | %s\n"
+		for _, run := range runs {
+			sha := run.HeadSha
+			if len(sha) > 7 {
+				sha = sha[:7]
+			}
+			
+			branchDist := run.HeadBranch
+			if d, ok := commitMap[run.HeadSha]; ok && d > 0 {
+				branchDist = fmt.Sprintf("%s^%d", run.HeadBranch, d)
+			}
+
+			msg := commitMsgMap[run.HeadSha]
+			if msg == "" {
+				msg = "unknown"
+			}
+
+			createdAt := run.CreatedAt.Format("2006-01-02 15:04:05")
+
+			name := run.Name
+			if failed, ok := runFailedJobs[run.ID]; ok {
+				name = fmt.Sprintf("%s (%s)", name, strings.Join(failed, ", "))
+			}
+
+			fmt.Printf(rowFormat, 
+				truncate(name, wfW), 
+				run.RunAttempt, 
+				truncate(branchDist, brW), 
+				sha, 
+				createdAt,
+				maxUrlW,
+				run.HTMLURL,
+				truncate(msg, msgW))
+		}
+		fmt.Println("Dry-run complete. No reruns were triggered.")
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 5) // Limit concurrency to 5
+
+	for _, run := range runs {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(run gh.WorkflowRun) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			sha := run.HeadSha
+			if len(sha) > 7 {
+				sha = sha[:7]
+			}
+
+			err := r.client.RerunWorkflow(run.ID, r.opts.FailedOnly)
+			if err != nil {
+				fmt.Printf("✗ Failed to rerun %d (%s): %v\n", run.ID, run.Name, err)
+			} else {
+				fmt.Printf("✓ Triggered rerun for: %s (%s) | #%d (attempt %d) | %s\n", 
+					run.Name, run.HeadBranch, run.RunNumber, run.RunAttempt, sha)
+			}
+		}(run)
+	}
+
+	wg.Wait()
+	
+	endRate, err := r.client.GetRateLimit()
+	if err == nil {
+		spent := 0
+		if startRate != nil {
+			spent = startRate.Remaining - endRate.Remaining
+		}
+		fmt.Printf("[Trace] Rate limit at end: %d/%d (spent %d)\n", 
+			endRate.Remaining, endRate.Limit, spent)
+	}
+
+	if !r.opts.DryRun {
+		fmt.Println("Done triggering reruns.")
+	}
+	return nil
+}
+
+func truncate(s string, l int) string {
+	if len(s) > l {
+		if l > 3 {
+			return s[:l-3] + "..."
+		}
+		return s[:l]
+	}
+	return s
+}
+
+func (r *Rerunner) fetchRunsForPR(number int) ([]gh.WorkflowRun, error) {
+	pr, err := r.client.FetchPullRequest(number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch PR #%d: %w", number, err)
+	}
+	return r.fetchFailedRunsForSha(pr.HeadRefOid)
+}
+
+func (r *Rerunner) fetchRunsForAllOpenPRs() ([]gh.WorkflowRun, error) {
+	prs, err := r.client.FetchOpenPullRequests()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch open PRs: %w", err)
+	}
+
+	var allRuns []gh.WorkflowRun
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 10) // Concurrency for PR fetching
+
+	for _, pr := range prs {
+		if pr.IsDraft && !r.opts.IncludeDrafts {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(p gh.PullRequest) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			runs, err := r.fetchFailedRunsForSha(p.HeadRefOid)
+			if err != nil {
+				fmt.Printf("Warning: failed to fetch runs for PR #%d: %v\n", p.Number, err)
+				return
+			}
+			mu.Lock()
+			allRuns = append(allRuns, runs...)
+			mu.Unlock()
+		}(pr)
+	}
+	wg.Wait()
+	return allRuns, nil
+}
+
+func (r *Rerunner) fetchRunsForContextParallel() ([]gh.WorkflowRun, error) {
+	var sinceTime time.Time
+	if r.opts.Since > 0 {
+		sinceTime = time.Now().Add(-r.opts.Since)
+	}
+
+	statuses := []string{"failure"}
+	if r.opts.IncludeCancelled {
+		statuses = append(statuses, "cancelled")
+	}
+	if r.opts.IncludeTimedOut {
+		statuses = append(statuses, "timed_out")
+	}
+
+	var allRuns []gh.WorkflowRun
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(statuses))
+
+	for _, status := range statuses {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			runs, err := r.client.FetchWorkflowRuns(r.opts.Branch, s, sinceTime, r.opts.Limit)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			mu.Lock()
+			allRuns = append(allRuns, runs...)
+			mu.Unlock()
+		}(status)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return allRuns, nil
+}
+
+func (r *Rerunner) fetchFailedRunsForSha(sha string) ([]gh.WorkflowRun, error) {
+	var allRuns []gh.WorkflowRun
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	
+	statuses := []string{"failure"}
+	if r.opts.IncludeCancelled {
+		statuses = append(statuses, "cancelled")
+	}
+	if r.opts.IncludeTimedOut {
+		statuses = append(statuses, "timed_out")
+	}
+
+	for _, status := range statuses {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			runs, err := r.client.FetchWorkflowRunsForSha(sha, s, r.opts.Limit)
+			if err != nil {
+				fmt.Printf("Warning: failed to fetch %s runs for sha %s: %v\n", s, sha, err)
+				return
+			}
+			mu.Lock()
+			allRuns = append(allRuns, runs...)
+			mu.Unlock()
+		}(status)
+	}
+	wg.Wait()
+
+	// Filter by since if needed
+	if r.opts.Since > 0 {
+		sinceTime := time.Now().Add(-r.opts.Since)
+		var filtered []gh.WorkflowRun
+		for _, run := range allRuns {
+			if run.CreatedAt.After(sinceTime) {
+				filtered = append(filtered, run)
+			}
+		}
+		return filtered, nil
+	}
+
+	return allRuns, nil
+}
