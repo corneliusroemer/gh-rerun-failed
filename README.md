@@ -48,9 +48,10 @@ gh extension remove rerun-failed
 
 ## Demo Recording
 
-The terminal demo was created using [VHS](https://github.com/charmbracelet/vhs). To re-record:
+The terminal demo was created using [VHS](https://github.com/charmbracelet/vhs). To re-record, ensure you have `vhs` and `ttyd` installed:
 
 ```bash
+brew install vhs ttyd
 vhs < demo.tape
 ```
 
