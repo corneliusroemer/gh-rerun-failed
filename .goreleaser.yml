@@ -33,7 +33,7 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
-snapshots:
+snapshot:
   name_template: "next"
 
 changelog:
