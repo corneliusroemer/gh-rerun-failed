@@ -97,9 +97,6 @@ func (c *Client) FetchWorkflowRunsForSha(sha string, status string, limit int) (
 	var allRuns []WorkflowRun
 	page := 1
 	perPage := 100
-	if limit > 0 && limit < 100 {
-		perPage = limit
-	}
 
 	for {
 		path := fmt.Sprintf("repos/%s/%s/actions/runs?head_sha=%s&per_page=%d&page=%d", c.repo.Owner, c.repo.Name, sha, perPage, page)
