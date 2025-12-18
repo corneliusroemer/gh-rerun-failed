@@ -25,13 +25,8 @@ builds:
 archives:
   - format: tar.gz
     # exact format gh extension install expects for go extensions
+    # we use .Os and .Arch directly
     name_template: "gh-rerun-failed-{{ .Os }}-{{ .Arch }}"
-    replacements:
-      darwin: darwin
-      linux: linux
-      windows: windows
-      amd64: amd64
-      arm64: arm64
     format_overrides:
       - goos: windows
         format: zip
