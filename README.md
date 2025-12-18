@@ -5,7 +5,7 @@ A GitHub CLI extension to rerun failed workflow runs across branches, commits, a
 ## Installation
 
 ```bash
-gh extension install corneliusroemer/gh-action-rerun-failed-extension
+gh extension install corneliusroemer/gh-rerun-failed
 ```
 
 ## Usage

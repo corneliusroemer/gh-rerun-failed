@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cli/gh-rerun-failed/internal/gh"
 	"github.com/cli/go-gh/v2/pkg/term"
+	"github.com/corneliusroemer/gh-rerun-failed/internal/gh"
 )
 
 type Options struct {

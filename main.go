@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/cli/gh-rerun-failed/internal/gh"
-	"github.com/cli/gh-rerun-failed/internal/rerunner"
+	"github.com/corneliusroemer/gh-rerun-failed/internal/gh"
+	"github.com/corneliusroemer/gh-rerun-failed/internal/rerunner"
 	"github.com/spf13/cobra"
 )
 

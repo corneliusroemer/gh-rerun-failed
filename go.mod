@@ -1,4 +1,4 @@
-module github.com/cli/gh-rerun-failed
+module github.com/corneliusroemer/gh-rerun-failed
 
 go 1.24
 

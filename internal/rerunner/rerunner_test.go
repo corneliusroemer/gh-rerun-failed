@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cli/gh-rerun-failed/internal/gh"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/corneliusroemer/gh-rerun-failed/internal/gh"
 )
 
 type mockGHClient struct {
