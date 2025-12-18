@@ -1,5 +1,5 @@
 # .goreleaser.yml
-project_name: gh-rerun-failed
+project_name: gh-action-rerun-failed-extension
 
 before:
   hooks:
@@ -19,7 +19,7 @@ builds:
       - goos: windows
         goarch: arm64
     main: ./main.go
-    binary: gh-rerun-failed
+    binary: gh-action-rerun-failed-extension
 
 archives:
   - format: tar.gz
