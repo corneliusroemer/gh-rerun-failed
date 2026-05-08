@@ -22,6 +22,8 @@ var (
 	includeDrafts    bool
 	includeCancelled bool
 	includeTimedOut  bool
+	workflowFilter   string
+	workflowExclude  string
 )
 
 func main() {
@@ -45,6 +47,8 @@ func main() {
 	rootCmd.Flags().BoolVar(&includeDrafts, "include-drafts", false, "Include draft PRs when using --all-prs")
 	rootCmd.Flags().BoolVar(&includeCancelled, "include-cancelled", false, "Include cancelled runs")
 	rootCmd.Flags().BoolVar(&includeTimedOut, "include-timed-out", false, "Include timed-out runs")
+	rootCmd.Flags().StringVar(&workflowFilter, "workflow", "", "Only process workflow runs whose name contains this text (case-insensitive)")
+	rootCmd.Flags().StringVar(&workflowExclude, "workflow-exclude", "", "Exclude workflow runs whose name contains this text (case-insensitive)")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -79,6 +83,8 @@ func runRerunner() error {
 		IncludeDrafts:    includeDrafts,
 		IncludeCancelled: includeCancelled,
 		IncludeTimedOut:  includeTimedOut,
+		WorkflowFilter:   workflowFilter,
+		WorkflowExclude:  workflowExclude,
 	}
 
 	r := rerunner.NewRerunner(client, opts)

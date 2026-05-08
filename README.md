@@ -20,6 +20,12 @@ gh rerun-failed --branch main --limit 10
 # Rerun failed runs for a specific PR
 gh rerun-failed --pr 123
 
+# Rerun only workflows whose name contains "Integration"
+gh rerun-failed --workflow Integration
+
+# Rerun failed runs except workflows whose name contains "mirror"
+gh rerun-failed --workflow-exclude mirror
+
 # Rerun failed runs from all open PRs
 gh rerun-failed --all-prs
 
@@ -57,6 +63,8 @@ gh extension remove rerun-failed
 - `--include-cancelled`: Also process cancelled runs (default `false`)
 - `--include-timed-out`: Also process timed-out runs (default `false`)
 - `--include-drafts`: Include draft PRs when using `--all-prs` (default `false`)
+- `--workflow string`: Only process workflow runs whose name contains this text, case-insensitive
+- `--workflow-exclude string`: Exclude workflow runs whose name contains this text, case-insensitive
 
 
 ## Development

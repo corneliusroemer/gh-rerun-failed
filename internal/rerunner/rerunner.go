@@ -23,6 +23,8 @@ type Options struct {
 	IncludeDrafts    bool
 	IncludeCancelled bool
 	IncludeTimedOut  bool
+	WorkflowFilter   string
+	WorkflowExclude  string
 }
 
 type Rerunner struct {
@@ -87,6 +89,8 @@ func (r *Rerunner) Run() error {
 	if err != nil {
 		return err
 	}
+
+	runs = filterRunsByWorkflowName(runs, r.opts.WorkflowFilter, r.opts.WorkflowExclude)
 
 	if len(runs) == 0 {
 		fmt.Println("No failed workflow runs found matching the criteria.")
@@ -202,7 +206,7 @@ func (r *Rerunner) Run() error {
 				if !ok {
 					// Fallback: fetch single commit info
 					c, err := r.client.FetchCommit(run.HeadSha)
-					if err == nil {
+					if err == nil && c != nil {
 						msg = strings.Split(c.Message, "\n")[0]
 						mu.Lock()
 						commitMsgMap[run.HeadSha] = msg
@@ -291,6 +295,38 @@ func truncate(s string, l int) string {
 	return s
 }
 
+func filterRunsByWorkflowName(runs []gh.WorkflowRun, include string, exclude string) []gh.WorkflowRun {
+	include = strings.ToLower(strings.TrimSpace(include))
+	exclude = strings.ToLower(strings.TrimSpace(exclude))
+	if include == "" && exclude == "" {
+		return runs
+	}
+
+	filtered := make([]gh.WorkflowRun, 0, len(runs))
+	for _, run := range runs {
+		name := strings.ToLower(run.Name)
+		if include != "" && !strings.Contains(name, include) {
+			continue
+		}
+		if exclude != "" && strings.Contains(name, exclude) {
+			continue
+		}
+		filtered = append(filtered, run)
+	}
+	return filtered
+}
+
+func hasWorkflowNameFilter(opts Options) bool {
+	return strings.TrimSpace(opts.WorkflowFilter) != "" || strings.TrimSpace(opts.WorkflowExclude) != ""
+}
+
+func (r *Rerunner) fetchLimit() int {
+	if hasWorkflowNameFilter(r.opts) {
+		return 0
+	}
+	return r.opts.Limit
+}
+
 func (r *Rerunner) fetchRunsForPR(number int) ([]gh.WorkflowRun, error) {
 	pr, err := r.client.FetchPullRequest(number)
 	if err != nil {
@@ -362,7 +398,7 @@ func (r *Rerunner) fetchRunsForContextParallel() ([]gh.WorkflowRun, error) {
 		wg.Add(1)
 		go func(s string) {
 			defer wg.Done()
-			runs, err := r.client.FetchWorkflowRuns(r.opts.Branch, s, sinceTime, r.opts.Limit)
+			runs, err := r.client.FetchWorkflowRuns(r.opts.Branch, s, sinceTime, r.fetchLimit())
 			if err != nil {
 				errChan <- err
 				return
@@ -402,7 +438,7 @@ func (r *Rerunner) fetchFailedRunsForSha(sha string) ([]gh.WorkflowRun, error) {
 		wg.Add(1)
 		go func(s string) {
 			defer wg.Done()
-			runs, err := r.client.FetchWorkflowRunsForSha(sha, s, r.opts.Limit)
+			runs, err := r.client.FetchWorkflowRunsForSha(sha, s, r.fetchLimit())
 			if err != nil {
 				fmt.Printf("Warning: failed to fetch %s runs for sha %s: %v\n", s, sha, err)
 				return

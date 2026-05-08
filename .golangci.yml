@@ -1,6 +1,7 @@
+version: "2"
+
 linters:
   enable:
-    - gofmt
     - govet
     - errcheck
     - staticcheck
@@ -9,9 +10,12 @@ linters:
     - unparam
     - prealloc
 
-linters-settings:
-  gofmt:
-    simplify: true
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
 
 run:
   timeout: 5m

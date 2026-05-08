@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3] - 2026-05-08
+
+### Added
+- Workflow name filtering with `--workflow` to only rerun matching workflow runs.
+- Workflow exclusion filtering with `--workflow-exclude` to skip matching workflow runs.
+
+### Fixed
+- Avoid a dry-run panic when commit fallback lookup returns no commit data.
+
 ## [0.3.2] - 2025-12-18
 
 ### Added

@@ -1,6 +1,8 @@
 package rerunner
 
 import (
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -135,4 +137,107 @@ func TestRerunner_Run_Limit(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 	// We'd need to track calls to verify limit, but the output will show it.
+}
+
+func TestRerunner_Run_WorkflowFilter(t *testing.T) {
+	var rerunIDs []int64
+	var rerunMu sync.Mutex
+
+	mock := &mockGHClient{
+		fetchWorkflowRunsFunc: func(branch string, status string, since time.Time, limit int) ([]gh.WorkflowRun, error) {
+			if status != "failure" {
+				return nil, nil
+			}
+			if limit != 0 {
+				t.Fatalf("expected fetch limit 0 when workflow filter is set, got %d", limit)
+			}
+			return []gh.WorkflowRun{
+				{ID: 1, Name: "Unit Tests", CreatedAt: time.Now()},
+				{ID: 2, Name: "Integration Tests", CreatedAt: time.Now()},
+				{ID: 3, Name: "integration Smoke", CreatedAt: time.Now()},
+			}, nil
+		},
+		rerunWorkflowFunc: func(runID int64, failedOnly bool) error {
+			rerunMu.Lock()
+			defer rerunMu.Unlock()
+			rerunIDs = append(rerunIDs, runID)
+			return nil
+		},
+	}
+
+	opts := Options{
+		Repo:           "owner/repo",
+		Limit:          1,
+		FailedOnly:     true,
+		WorkflowFilter: "Integration",
+	}
+
+	r := NewRerunner(mock, opts)
+	err := r.Run()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	sort.Slice(rerunIDs, func(i, j int) bool { return rerunIDs[i] < rerunIDs[j] })
+	if len(rerunIDs) != 1 || rerunIDs[0] != 2 {
+		t.Fatalf("expected only the first matching workflow to be rerun, got %v", rerunIDs)
+	}
+}
+
+func TestRerunner_Run_WorkflowExclude(t *testing.T) {
+	var rerunIDs []int64
+	var rerunMu sync.Mutex
+
+	mock := &mockGHClient{
+		fetchWorkflowRunsFunc: func(branch string, status string, since time.Time, limit int) ([]gh.WorkflowRun, error) {
+			if status != "failure" {
+				return nil, nil
+			}
+			if limit != 0 {
+				t.Fatalf("expected fetch limit 0 when workflow exclude is set, got %d", limit)
+			}
+			return []gh.WorkflowRun{
+				{ID: 1, Name: "Mirror integration", CreatedAt: time.Now()},
+				{ID: 2, Name: "Integration Tests", CreatedAt: time.Now()},
+				{ID: 3, Name: "Unit Tests", CreatedAt: time.Now()},
+			}, nil
+		},
+		rerunWorkflowFunc: func(runID int64, failedOnly bool) error {
+			rerunMu.Lock()
+			defer rerunMu.Unlock()
+			rerunIDs = append(rerunIDs, runID)
+			return nil
+		},
+	}
+
+	opts := Options{
+		Repo:            "owner/repo",
+		FailedOnly:      true,
+		WorkflowExclude: "mirror",
+	}
+
+	r := NewRerunner(mock, opts)
+	err := r.Run()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	sort.Slice(rerunIDs, func(i, j int) bool { return rerunIDs[i] < rerunIDs[j] })
+	if len(rerunIDs) != 2 || rerunIDs[0] != 2 || rerunIDs[1] != 3 {
+		t.Fatalf("expected workflows without mirror to be rerun, got %v", rerunIDs)
+	}
+}
+
+func TestFilterRunsByWorkflowName(t *testing.T) {
+	runs := []gh.WorkflowRun{
+		{ID: 1, Name: "Unit Tests"},
+		{ID: 2, Name: "Integration Tests"},
+		{ID: 3, Name: "integration Smoke"},
+		{ID: 4, Name: "Mirror Integration"},
+	}
+
+	filtered := filterRunsByWorkflowName(runs, " Integration ", "mirror")
+	if len(filtered) != 2 || filtered[0].ID != 2 || filtered[1].ID != 3 {
+		t.Fatalf("expected case-insensitive include and exclude match for integration workflows, got %v", filtered)
+	}
 }
