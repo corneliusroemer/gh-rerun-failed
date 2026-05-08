@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.3] - 2026-05-08
+## [0.3.4] - 2026-05-08
 
 ### Added
 - Workflow name filtering with `--workflow` to only rerun matching workflow runs.
@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Avoid a dry-run panic when commit fallback lookup returns no commit data.
+- Use a golangci-lint GitHub Action version compatible with the project's v2 lint config.
 
 ## [0.3.2] - 2025-12-18
 
